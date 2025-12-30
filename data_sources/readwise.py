@@ -1,11 +1,15 @@
 # Readwise highlights API integration
 
+import logging
 import os
 import random
 import requests
 from dataclasses import dataclass
 
+logger = logging.getLogger(__name__)
+
 READWISE_TOKEN = os.environ.get("READWISE_TOKEN")
+MIN_HIGHLIGHT_LENGTH = 20  # Skip very short highlights
 
 
 @dataclass
@@ -41,7 +45,7 @@ def get_random_highlight() -> Highlight | None:
             author = book.get("author", "Unknown")
             for h in book.get("highlights", []):
                 text = h.get("text", "")
-                if text and len(text) > 20:  # Skip very short highlights
+                if text and len(text) > MIN_HIGHLIGHT_LENGTH:
                     all_highlights.append(Highlight(
                         text=text,
                         title=title,
@@ -53,6 +57,6 @@ def get_random_highlight() -> Highlight | None:
 
         return random.choice(all_highlights)
 
-    except Exception as e:
-        print(f"Readwise fetch failed: {e}")
+    except requests.RequestException as e:
+        logger.warning("Readwise fetch failed: %s", e)
         return None

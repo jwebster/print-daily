@@ -1,5 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Daily newspaper PDF generator - launchd schedule
+
+  Setup:
+  1. Copy this file to ~/Library/LaunchAgents/
+  2. Edit the paths below to match your installation
+  3. Run: launchctl load ~/Library/LaunchAgents/com.jwebster.print-daily.plist
+-->
 <plist version="1.0">
 <dict>
     <key>Label</key>
@@ -7,8 +15,10 @@
 
     <key>ProgramArguments</key>
     <array>
-        <string>/opt/homebrew/Caskroom/miniconda/base/bin/python3</string>
-        <string>/Users/jwebster/code/personal/print-daily/generate_daily.py</string>
+        <!-- Update this to your Python path (run: which python3) -->
+        <string>/usr/bin/python3</string>
+        <!-- Update this to your installation path -->
+        <string>/path/to/print-daily/generate_daily.py</string>
     </array>
 
     <key>StartCalendarInterval</key>
@@ -19,14 +29,16 @@
         <integer>30</integer>
     </dict>
 
+    <!-- Update this to your installation path -->
     <key>WorkingDirectory</key>
-    <string>/Users/jwebster/code/personal/print-daily</string>
+    <string>/path/to/print-daily</string>
 
+    <!-- Update these to your installation path -->
     <key>StandardOutPath</key>
-    <string>/Users/jwebster/code/personal/print-daily/logs/stdout.log</string>
+    <string>/path/to/print-daily/logs/stdout.log</string>
 
     <key>StandardErrorPath</key>
-    <string>/Users/jwebster/code/personal/print-daily/logs/stderr.log</string>
+    <string>/path/to/print-daily/logs/stderr.log</string>
 
     <key>RunAtLoad</key>
     <false/>

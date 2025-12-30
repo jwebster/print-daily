@@ -1,10 +1,13 @@
 # Guardian news headlines from Guardian Open Platform API
 
+import html
+import logging
 import os
 import re
 import requests
 from dataclasses import dataclass
-import html
+
+logger = logging.getLogger(__name__)
 
 # API key from environment (get one at https://open-platform.theguardian.com/)
 GUARDIAN_API_KEY = os.environ.get("GUARDIAN_API_KEY")
@@ -29,7 +32,7 @@ def clean_html(text: str) -> str:
 def get_news(count: int = 15) -> list[NewsItem]:
     """Fetch top news headlines from The Guardian for curation."""
     if not GUARDIAN_API_KEY:
-        print("Warning: GUARDIAN_API_KEY not set")
+        logger.warning("GUARDIAN_API_KEY not set")
         return []
 
     try:
@@ -64,6 +67,6 @@ def get_news(count: int = 15) -> list[NewsItem]:
 
         return news_items
 
-    except Exception as e:
-        print(f"Guardian news fetch failed: {e}")
+    except requests.RequestException as e:
+        logger.warning("Guardian news fetch failed: %s", e)
         return []

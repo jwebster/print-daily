@@ -1,8 +1,11 @@
 # Weather data from Open-Meteo API (free, no key required)
 
+import logging
 import requests
 from dataclasses import dataclass
 from datetime import datetime
+
+logger = logging.getLogger(__name__)
 
 # Witney, Oxfordshire coordinates
 WITNEY_LAT = 51.7856
@@ -96,6 +99,6 @@ def get_weather() -> WeatherData | None:
             sunset=sunset,
         )
 
-    except Exception as e:
-        print(f"Weather fetch failed: {e}")
+    except requests.RequestException as e:
+        logger.warning("Weather fetch failed: %s", e)
         return None

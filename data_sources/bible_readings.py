@@ -181,7 +181,7 @@ def psalms(n):
     readings.append(f"{book_abbreviations('Psalms')} 119 v33-96")
     readings.append(f"{book_abbreviations('Psalms')} 119 v97-144")
     readings.append(f"{book_abbreviations('Psalms')} 119 v145-176")
-    r += 1
+    r = 120  # Continue after Psalm 119
     while r < 151:
         if r not in short:
             readings.append(f"{book_abbreviations('Psalms')} {r}")

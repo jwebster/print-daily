@@ -1,9 +1,12 @@
 # Claude AI for news curation and summarization
 
-import os
 import json
+import logging
+import os
 import requests
 from dataclasses import dataclass
+
+logger = logging.getLogger(__name__)
 
 CLAUDE_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
 
@@ -71,7 +74,7 @@ def curate_and_summarize(articles: list[dict]) -> CuratedNews:
     )
 
     if not CLAUDE_API_KEY:
-        print("Warning: ANTHROPIC_API_KEY not set, skipping AI curation")
+        logger.warning("ANTHROPIC_API_KEY not set, skipping AI curation")
         return _fallback(articles)
 
     try:
@@ -101,7 +104,7 @@ def curate_and_summarize(articles: list[dict]) -> CuratedNews:
         # Extract text content
         content = data.get("content", [])
         if not content:
-            print("Claude returned empty content")
+            logger.warning("Claude returned empty content")
             return _fallback(articles)
 
         text = content[0].get("text", "")
@@ -130,10 +133,10 @@ def curate_and_summarize(articles: list[dict]) -> CuratedNews:
         return CuratedNews(top_stories=top_stories, third_story=third_story, headlines=headlines)
 
     except json.JSONDecodeError as e:
-        print(f"Failed to parse Claude response: {e}")
+        logger.warning("Failed to parse Claude response: %s", e)
         return _fallback(articles)
-    except Exception as e:
-        print(f"Claude API error: {e}")
+    except requests.RequestException as e:
+        logger.warning("Claude API error: %s", e)
         return _fallback(articles)
 
 
