@@ -3,10 +3,28 @@
 import json
 import logging
 import os
+import time
 import requests
 from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
+
+
+def _retry_request(func, max_retries=3, delay=1):
+    """Retry a function with exponential backoff."""
+    for attempt in range(max_retries):
+        try:
+            return func()
+        except requests.RequestException as e:
+            if attempt == max_retries - 1:
+                raise
+            logger.debug(
+                "Request failed (attempt %d/%d): %s",
+                attempt + 1, max_retries, e
+            )
+            time.sleep(delay * (2 ** attempt))
+    return None
+
 
 CLAUDE_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
 CLAUDE_MODEL = os.environ.get("CLAUDE_MODEL", "claude-sonnet-4-20250514")
@@ -79,25 +97,27 @@ def curate_and_summarize(articles: list[dict]) -> CuratedNews:
         return _fallback(articles)
 
     try:
-        response = requests.post(
-            "https://api.anthropic.com/v1/messages",
-            headers={
-                "x-api-key": CLAUDE_API_KEY,
-                "anthropic-version": "2023-06-01",
-                "content-type": "application/json",
-            },
-            json={
-                "model": CLAUDE_MODEL,
-                "max_tokens": 2048,
-                "system": SYSTEM_PROMPT,
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": f"Here are today's news articles. Select 3-4 and provide detailed summaries:\n\n{articles_text}"
-                    }
-                ]
-            },
-            timeout=60,
+        response = _retry_request(
+            lambda: requests.post(
+                "https://api.anthropic.com/v1/messages",
+                headers={
+                    "x-api-key": CLAUDE_API_KEY,
+                    "anthropic-version": "2023-06-01",
+                    "content-type": "application/json",
+                },
+                json={
+                    "model": CLAUDE_MODEL,
+                    "max_tokens": 2048,
+                    "system": SYSTEM_PROMPT,
+                    "messages": [
+                        {
+                            "role": "user",
+                            "content": f"Here are today's news articles. Select 3-4 and provide detailed summaries:\n\n{articles_text}"
+                        }
+                    ]
+                },
+                timeout=60,
+            )
         )
         response.raise_for_status()
         data = response.json()

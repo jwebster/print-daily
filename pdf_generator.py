@@ -76,7 +76,17 @@ def register_fonts():
         )
 
 
-def draw_text(c, x, y, text, font="Montserrat-Medium", size=10, colour="#1A1D21", align="left", max_width=None):
+def draw_text(
+    c: canvas.Canvas,
+    x: float,
+    y: float,
+    text: str,
+    font: str = "Montserrat-Medium",
+    size: int = 10,
+    colour: str = "#1A1D21",
+    align: str = "left",
+    max_width: float | None = None,
+) -> float:
     """Draw text with optional wrapping."""
     c.setFillColor(HexColor(colour))
     c.setFont(font, size)
@@ -97,7 +107,7 @@ def draw_text(c, x, y, text, font="Montserrat-Medium", size=10, colour="#1A1D21"
         return y
 
 
-def draw_divider(c, x1, x2, y, colour="#E2E8F0"):
+def draw_divider(c: canvas.Canvas, x1: float, x2: float, y: float, colour: str = "#E2E8F0") -> None:
     """Draw a subtle horizontal divider."""
     c.setStrokeColor(HexColor(colour))
     c.setLineWidth(0.5)
@@ -145,6 +155,7 @@ def generate_pdf(content: DailyContent) -> bytes:
 
     # === HEADER: Date on left, Weather on right ===
     day_name = content.date.strftime("%A").upper()
+    # Note: %-d format is macOS/Linux only (no zero-padding). Windows would need %#d.
     date_str = content.date.strftime("%-d %B %Y")
 
     # Date (left side)

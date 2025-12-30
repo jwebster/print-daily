@@ -4,10 +4,28 @@ import json
 import logging
 import os
 import random
+import time
 import requests
 from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
+
+
+def _retry_request(func, max_retries=3, delay=1):
+    """Retry a function with exponential backoff."""
+    for attempt in range(max_retries):
+        try:
+            return func()
+        except requests.RequestException as e:
+            if attempt == max_retries - 1:
+                raise
+            logger.debug(
+                "Request failed (attempt %d/%d): %s",
+                attempt + 1, max_retries, e
+            )
+            time.sleep(delay * (2 ** attempt))
+    return None
+
 
 READWISE_TOKEN = os.environ.get("READWISE_TOKEN")
 MIN_HIGHLIGHT_LENGTH = 20  # Skip very short highlights
@@ -36,11 +54,13 @@ def _skip_pages(start_page: int, headers: dict, timeout: int) -> str | None:
         if cursor:
             params["pageCursor"] = cursor
 
-        response = requests.get(
-            "https://readwise.io/api/v2/export/",
-            headers=headers,
-            params=params,
-            timeout=timeout,
+        response = _retry_request(
+            lambda p=params: requests.get(
+                "https://readwise.io/api/v2/export/",
+                headers=headers,
+                params=p,
+                timeout=timeout,
+            )
         )
         response.raise_for_status()
         data = response.json()
@@ -87,11 +107,13 @@ def get_random_highlight() -> Highlight | None:
             if next_cursor:
                 params["pageCursor"] = next_cursor
 
-            response = requests.get(
-                "https://readwise.io/api/v2/export/",
-                headers=headers,
-                params=params,
-                timeout=timeout,
+            response = _retry_request(
+                lambda p=params: requests.get(
+                    "https://readwise.io/api/v2/export/",
+                    headers=headers,
+                    params=p,
+                    timeout=timeout,
+                )
             )
             response.raise_for_status()
             data = response.json()

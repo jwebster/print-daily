@@ -17,6 +17,7 @@ import os
 import subprocess
 import sys
 import tempfile
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date
 from pathlib import Path
 
@@ -54,25 +55,61 @@ def main():
 
     # Determine date
     if args.date:
-        target_date = date.fromisoformat(args.date)
+        try:
+            target_date = date.fromisoformat(args.date)
+        except ValueError:
+            print(f"Error: Invalid date format '{args.date}'. Expected YYYY-MM-DD (e.g., 2025-12-30)")
+            sys.exit(1)
     else:
         target_date = date.today()
 
+    # Note: %-d format is macOS/Linux only (no zero-padding). Windows would need %#d.
     print(f"Generating daily print for {target_date.strftime('%A %-d %B %Y')}...")
 
-    # Fetch data (gracefully handle failures)
-    print("  Fetching weather...")
-    weather = get_weather()
+    # Fetch data in parallel (gracefully handle failures)
+    print("  Fetching data in parallel...")
+
+    def fetch_weather():
+        return get_weather()
+
+    def fetch_news():
+        return get_news(count=15)
+
+    def fetch_readings():
+        return get_todays_readings(target_date)
+
+    def fetch_verse():
+        return get_daily_verse(target_date)
+
+    def fetch_highlight():
+        return get_random_highlight()
+
+    # Run all fetches in parallel
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        future_weather = executor.submit(fetch_weather)
+        future_news = executor.submit(fetch_news)
+        future_readings = executor.submit(fetch_readings)
+        future_verse = executor.submit(fetch_verse)
+        future_highlight = executor.submit(fetch_highlight)
+
+        # Collect results
+        weather = future_weather.result()
+        raw_news = future_news.result()
+        readings = future_readings.result()
+        verse = future_verse.result()
+        rw_highlight = future_highlight.result()
+
+    # Print results in order
+    print("  Weather:")
     if weather:
         print(f"    {weather.temperature}°C, {weather.condition}")
     else:
         print("    Weather unavailable")
 
-    print("  Fetching news from Guardian...")
-    raw_news = get_news(count=15)
+    print("  News from Guardian:")
     print(f"    {len(raw_news)} articles fetched")
 
-    # Use Claude to curate and summarize
+    # Use Claude to curate and summarize (must wait for news)
     if not args.no_ai and raw_news:
         print("  Curating with Claude AI...")
         articles = [{"headline": n.headline, "summary": n.summary} for n in raw_news]
@@ -86,8 +123,7 @@ def main():
         headlines = [n.headline for n in raw_news[3:7]]
         news = CuratedNews(top_stories=top_stories, third_story=third_story, headlines=headlines)
 
-    print("  Getting bible readings...")
-    readings = get_todays_readings(target_date)
+    print("  Bible readings:")
     if readings:
         valid = [r for r in readings if r]
         if valid:
@@ -97,12 +133,10 @@ def main():
     else:
         print("    No readings (weekend)")
 
-    print("  Getting verse of the day...")
-    verse = get_daily_verse(target_date)
+    print("  Verse of the day:")
     print(f"    {verse[1]}")
 
-    print("  Getting Readwise highlight...")
-    rw_highlight = get_random_highlight()
+    print("  Readwise highlight:")
     if rw_highlight:
         print(f"    From: {rw_highlight.title}")
         highlight = Highlight(text=rw_highlight.text, title=rw_highlight.title, author=rw_highlight.author)

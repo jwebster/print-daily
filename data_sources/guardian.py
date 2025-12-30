@@ -5,10 +5,28 @@ import json
 import logging
 import os
 import re
+import time
 import requests
 from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
+
+
+def _retry_request(func, max_retries=3, delay=1):
+    """Retry a function with exponential backoff."""
+    for attempt in range(max_retries):
+        try:
+            return func()
+        except requests.RequestException as e:
+            if attempt == max_retries - 1:
+                raise
+            logger.debug(
+                "Request failed (attempt %d/%d): %s",
+                attempt + 1, max_retries, e
+            )
+            time.sleep(delay * (2 ** attempt))
+    return None
+
 
 # API key from environment (get one at https://open-platform.theguardian.com/)
 GUARDIAN_API_KEY = os.environ.get("GUARDIAN_API_KEY")
@@ -46,7 +64,9 @@ def get_news(count: int = 15) -> list[NewsItem]:
         }
         headers = {"api-key": GUARDIAN_API_KEY}
 
-        response = requests.get(url, params=params, headers=headers, timeout=10)
+        response = _retry_request(
+            lambda: requests.get(url, params=params, headers=headers, timeout=10)
+        )
         response.raise_for_status()
         data = response.json()
 

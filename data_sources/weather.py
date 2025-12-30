@@ -2,16 +2,35 @@
 
 import json
 import logging
+import os
+import time
 import requests
 from dataclasses import dataclass
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
-# Witney, Oxfordshire coordinates
-WITNEY_LAT = 51.7856
-WITNEY_LON = -1.4857
-LOCATION_NAME = "Witney, Oxfordshire"
+
+def _retry_request(func, max_retries=3, delay=1):
+    """Retry a function with exponential backoff."""
+    for attempt in range(max_retries):
+        try:
+            return func()
+        except requests.RequestException as e:
+            if attempt == max_retries - 1:
+                raise
+            logger.debug(
+                "Request failed (attempt %d/%d): %s",
+                attempt + 1, max_retries, e
+            )
+            time.sleep(delay * (2 ** attempt))
+    return None
+
+
+# Location configuration (defaults to Witney, Oxfordshire)
+LOCATION_LAT = float(os.environ.get("LOCATION_LAT", "51.7856"))
+LOCATION_LON = float(os.environ.get("LOCATION_LON", "-1.4857"))
+LOCATION_NAME = os.environ.get("LOCATION_NAME", "Witney, Oxfordshire")
 
 # WMO weather codes to descriptions
 WMO_CODES = {
@@ -62,15 +81,17 @@ def get_weather() -> WeatherData | None:
     try:
         url = "https://api.open-meteo.com/v1/forecast"
         params = {
-            "latitude": WITNEY_LAT,
-            "longitude": WITNEY_LON,
+            "latitude": LOCATION_LAT,
+            "longitude": LOCATION_LON,
             "current": "temperature_2m,apparent_temperature,weather_code",
             "daily": "temperature_2m_max,temperature_2m_min,sunrise,sunset",
             "timezone": "Europe/London",
             "forecast_days": 1,
         }
 
-        response = requests.get(url, params=params, timeout=10)
+        response = _retry_request(
+            lambda: requests.get(url, params=params, timeout=10)
+        )
         response.raise_for_status()
         data = response.json()
 
