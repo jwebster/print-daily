@@ -107,7 +107,8 @@ def curate_and_summarize(articles: list[dict]) -> CuratedNews:
             logger.warning("Claude returned empty content")
             return _fallback(articles)
 
-        text = content[0].get("text", "")
+        first_content = content[0] if content else {}
+        text = first_content.get("text", "") if isinstance(first_content, dict) else ""
 
         # Handle markdown code blocks (Claude sometimes wraps JSON)
         if "```json" in text:
@@ -121,14 +122,18 @@ def curate_and_summarize(articles: list[dict]) -> CuratedNews:
         result = json.loads(text)
 
         top_stories = [
-            CuratedStory(headline=s["headline"], summary=s["summary"])
+            CuratedStory(headline=s.get("headline", ""), summary=s.get("summary", ""))
             for s in result.get("top_stories", [])
+            if isinstance(s, dict) and s.get("headline")
         ]
 
         third = result.get("third_story")
-        third_story = CuratedStory(headline=third["headline"], summary=third["summary"]) if third else None
+        if third and isinstance(third, dict) and third.get("headline"):
+            third_story = CuratedStory(headline=third.get("headline", ""), summary=third.get("summary", ""))
+        else:
+            third_story = None
 
-        headlines = result.get("headlines", [])
+        headlines = [h for h in result.get("headlines", []) if isinstance(h, str) and h]
 
         return CuratedNews(top_stories=top_stories, third_story=third_story, headlines=headlines)
 
@@ -137,6 +142,9 @@ def curate_and_summarize(articles: list[dict]) -> CuratedNews:
         return _fallback(articles)
     except requests.RequestException as e:
         logger.warning("Claude API error: %s", e)
+        return _fallback(articles)
+    except (KeyError, TypeError, IndexError) as e:
+        logger.warning("Unexpected Claude response structure: %s", e)
         return _fallback(articles)
 
 
