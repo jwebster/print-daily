@@ -33,15 +33,14 @@ logger = logging.getLogger(__name__)
 from dotenv import load_dotenv
 load_dotenv(Path(__file__).parent / ".env")
 
-# Add current directory to path for imports
-sys.path.insert(0, str(Path(__file__).parent))
-
 from data_sources.weather import get_weather
 from data_sources.guardian import get_news
 from data_sources.bible_readings import get_todays_readings
 from data_sources.bible_verse import get_daily_verse
 from data_sources.readwise import get_random_highlight
-from data_sources.claude_summarizer import curate_and_summarize
+from data_sources.claude_summarizer import (
+    curate_and_summarize, CuratedStory, CuratedNews,
+)
 from pdf_generator import generate_pdf, DailyContent, Highlight
 
 
@@ -82,7 +81,6 @@ def main():
         print(f"    {len(news.top_stories)} top, {third}, {len(news.headlines)} headlines")
     else:
         # Fallback to raw news without AI
-        from data_sources.claude_summarizer import CuratedStory, CuratedNews
         top_stories = [CuratedStory(headline=n.headline, summary=n.summary) for n in raw_news[:2]]
         third_story = CuratedStory(headline=raw_news[2].headline, summary=raw_news[2].summary) if len(raw_news) > 2 else None
         headlines = [n.headline for n in raw_news[3:7]]

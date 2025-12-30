@@ -1,5 +1,6 @@
 # Readwise highlights API integration
 
+import json
 import logging
 import os
 import random
@@ -11,6 +12,7 @@ logger = logging.getLogger(__name__)
 READWISE_TOKEN = os.environ.get("READWISE_TOKEN")
 MIN_HIGHLIGHT_LENGTH = 20  # Skip very short highlights
 MAX_PAGES = 5  # Limit pagination to avoid excessive API calls
+MAX_RANDOM_PAGE_OFFSET = 10  # Maximum random page offset for coverage
 
 
 @dataclass
@@ -20,14 +22,63 @@ class Highlight:
     author: str
 
 
+def _skip_pages(start_page: int, headers: dict, timeout: int) -> str | None:
+    """Skip to a specific page by following cursor chain.
+
+    Returns cursor for target page.
+    """
+    if start_page <= 1:
+        return None
+
+    cursor = None
+    for _ in range(start_page - 1):
+        params = {}
+        if cursor:
+            params["pageCursor"] = cursor
+
+        response = requests.get(
+            "https://readwise.io/api/v2/export/",
+            headers=headers,
+            params=params,
+            timeout=timeout,
+        )
+        response.raise_for_status()
+        data = response.json()
+
+        cursor = data.get("nextPageCursor")
+        if not cursor:
+            # Ran out of pages, return None to start from beginning
+            return None
+
+    return cursor
+
+
 def get_random_highlight() -> Highlight | None:
-    """Fetch a random highlight from Readwise using export endpoint with pagination."""
+    """Fetch a random highlight from Readwise using export endpoint.
+
+    Uses random page offset for more even coverage across all highlights
+    over time.
+    """
     if not READWISE_TOKEN:
         return None
 
+    headers = {"Authorization": f"Token {READWISE_TOKEN}"}
+    timeout = 15
+
     try:
+        # Random starting page for more even coverage over time
+        start_page = random.randint(1, MAX_RANDOM_PAGE_OFFSET)
+        logger.debug("Starting from page %d", start_page)
+
+        # Skip to the random starting page
+        try:
+            next_cursor = _skip_pages(start_page, headers, timeout)
+        except requests.RequestException:
+            # If skipping fails, start from beginning
+            next_cursor = None
+            start_page = 1
+
         all_highlights = []
-        next_cursor = None
         pages_fetched = 0
 
         while pages_fetched < MAX_PAGES:
@@ -38,9 +89,9 @@ def get_random_highlight() -> Highlight | None:
 
             response = requests.get(
                 "https://readwise.io/api/v2/export/",
-                headers={"Authorization": f"Token {READWISE_TOKEN}"},
+                headers=headers,
                 params=params,
-                timeout=15,
+                timeout=timeout,
             )
             response.raise_for_status()
             data = response.json()
@@ -70,6 +121,6 @@ def get_random_highlight() -> Highlight | None:
 
         return random.choice(all_highlights)
 
-    except requests.RequestException as e:
+    except (requests.RequestException, json.JSONDecodeError) as e:
         logger.warning("Readwise fetch failed: %s", e)
         return None

@@ -1,6 +1,7 @@
 # Guardian news headlines from Guardian Open Platform API
 
 import html
+import json
 import logging
 import os
 import re
@@ -67,6 +68,6 @@ def get_news(count: int = 15) -> list[NewsItem]:
 
         return news_items
 
-    except requests.RequestException as e:
+    except (requests.RequestException, json.JSONDecodeError) as e:
         logger.warning("Guardian news fetch failed: %s", e)
         return []

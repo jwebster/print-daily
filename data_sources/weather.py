@@ -1,5 +1,6 @@
 # Weather data from Open-Meteo API (free, no key required)
 
+import json
 import logging
 import requests
 from dataclasses import dataclass
@@ -10,6 +11,7 @@ logger = logging.getLogger(__name__)
 # Witney, Oxfordshire coordinates
 WITNEY_LAT = 51.7856
 WITNEY_LON = -1.4857
+LOCATION_NAME = "Witney, Oxfordshire"
 
 # WMO weather codes to descriptions
 WMO_CODES = {
@@ -79,8 +81,8 @@ def get_weather() -> WeatherData | None:
         condition = WMO_CODES.get(weather_code, "Unknown")
 
         # Parse sunrise/sunset times (format: "2025-12-30T08:12")
-        sunrise_raw = daily.get("sunrise", [""])[0]
-        sunset_raw = daily.get("sunset", [""])[0]
+        sunrise_raw = (daily.get("sunrise") or [""])[0]
+        sunset_raw = (daily.get("sunset") or [""])[0]
 
         sunrise = ""
         sunset = ""
@@ -91,14 +93,17 @@ def get_weather() -> WeatherData | None:
 
         return WeatherData(
             temperature=round(current.get("temperature_2m", 0)),
-            feels_like=round(current.get("apparent_temperature", 0)) if current.get("apparent_temperature") else None,
+            feels_like=(
+                round(current.get("apparent_temperature", 0))
+                if current.get("apparent_temperature") else None
+            ),
             condition=condition,
-            high=round(daily.get("temperature_2m_max", [0])[0]),
-            low=round(daily.get("temperature_2m_min", [0])[0]),
+            high=round((daily.get("temperature_2m_max") or [0])[0]),
+            low=round((daily.get("temperature_2m_min") or [0])[0]),
             sunrise=sunrise,
             sunset=sunset,
         )
 
-    except requests.RequestException as e:
+    except (requests.RequestException, json.JSONDecodeError) as e:
         logger.warning("Weather fetch failed: %s", e)
         return None

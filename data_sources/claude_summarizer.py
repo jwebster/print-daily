@@ -9,6 +9,7 @@ from dataclasses import dataclass
 logger = logging.getLogger(__name__)
 
 CLAUDE_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
+CLAUDE_MODEL = os.environ.get("CLAUDE_MODEL", "claude-sonnet-4-20250514")
 
 SYSTEM_PROMPT = """You are a news curator for a daily printed newspaper. Your reader is interested in:
 - UK and world politics
@@ -86,7 +87,7 @@ def curate_and_summarize(articles: list[dict]) -> CuratedNews:
                 "content-type": "application/json",
             },
             json={
-                "model": "claude-sonnet-4-20250514",
+                "model": CLAUDE_MODEL,
                 "max_tokens": 2048,
                 "system": SYSTEM_PROMPT,
                 "messages": [

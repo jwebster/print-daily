@@ -51,3 +51,8 @@ class TestGetDailyVerse:
         result = get_daily_verse()
         assert isinstance(result, tuple)
         assert len(result) == 2
+
+    def test_jan_1_returns_first_verse(self):
+        # Jan 1 (day_of_year=1) should return VERSES[0]
+        result = get_daily_verse(date(2024, 1, 1))
+        assert result == VERSES[0]

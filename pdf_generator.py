@@ -20,7 +20,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from data_sources.readwise import Highlight
-from data_sources.weather import WeatherData
+from data_sources.weather import LOCATION_NAME, WeatherData
 
 if TYPE_CHECKING:
     from data_sources.claude_summarizer import CuratedNews
@@ -174,7 +174,7 @@ def generate_pdf(content: DailyContent) -> bytes:
               font=FONTS["medium"], size=12, colour=COLOURS["secondary"])
     y -= 5 * mm
 
-    draw_text(c, margin_left, y, "Witney, Oxfordshire",
+    draw_text(c, margin_left, y, LOCATION_NAME,
               font=FONTS["light"], size=9, colour=COLOURS["muted"])
     y -= 8 * mm
 

@@ -48,6 +48,6 @@ def get_daily_verse(for_date: date = None) -> tuple[str, str]:
         for_date = date.today()
 
     day_of_year = for_date.timetuple().tm_yday
-    verse_index = day_of_year % len(VERSES)
+    verse_index = (day_of_year - 1) % len(VERSES)
 
     return VERSES[verse_index]
