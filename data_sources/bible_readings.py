@@ -77,16 +77,28 @@ def book_abbreviations(book):
     return mapping.get(book, book)
 
 
-def expand_book(book, chapters, start=0, step=1):
+def expand_book(book, end, start=0, step=1):
+    """
+    Generate a list of chapter references for a book.
+
+    Args:
+        book: Full book name (e.g., "Genesis")
+        end: The last chapter number to include (e.g., 50 for Genesis 1-50)
+        start: Starting chapter number (1-indexed, default 0 means chapter 1)
+        step: Number of chapters per reading (default 1)
+
+    Returns:
+        List of formatted chapter references (e.g., ["Gen. 1", "Gen. 2", ...])
+    """
     book_short = book_abbreviations(book)
     if start > 0:
         start = start - 1
     if step == 1:
-        return [f"{book_short} {r+1}" for r in range(start, chapters)]
+        return [f"{book_short} {r+1}" for r in range(start, end)]
     else:
         readings = []
-        for r in range(start, chapters, step):
-            up_to = min(r + step, chapters)
+        for r in range(start, end, step):
+            up_to = min(r + step, end)
             readings.append(f"{book_short} {r+1} - {up_to}")
         return readings
 

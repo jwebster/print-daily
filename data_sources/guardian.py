@@ -42,10 +42,10 @@ def get_news(count: int = 15) -> list[NewsItem]:
             "show-fields": "trailText",
             "page-size": count,
             "order-by": "newest",
-            "api-key": GUARDIAN_API_KEY,
         }
+        headers = {"api-key": GUARDIAN_API_KEY}
 
-        response = requests.get(url, params=params, timeout=10)
+        response = requests.get(url, params=params, headers=headers, timeout=10)
         response.raise_for_status()
         data = response.json()
 

@@ -110,9 +110,15 @@ class TestGetTodaysReadings:
     def test_end_of_year_returns_empty_strings(self):
         # Test a date far enough into the year that readings run out
         # The reading plans are ~260 days, so December should hit empty
+        # Dec 31, 2024 is a Tuesday - weekday index ~261
         readings = get_todays_readings(date(2024, 12, 31))
         assert readings is not None
-        # At least one reading may be empty by end of year
+        assert len(readings) == 3
+        # By late December, at least one reading plan should be exhausted
+        # (OT ~257 readings, Psalms ~127 readings, NT ~260 readings)
+        assert any(reading == "" for reading in readings), (
+            f"Expected at least one empty reading by end of year, got: {readings}"
+        )
 
 
 class TestOldYr1:

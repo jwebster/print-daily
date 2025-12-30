@@ -4,13 +4,16 @@ Daily newspaper PDF generator and printer.
 Generates an A4 PDF with news, weather, and bible readings, then prints it.
 
 Usage:
-    python generate_daily.py           # Generate and print
-    python generate_daily.py --preview # Generate and open in Preview (no print)
-    python generate_daily.py --save    # Generate and save to file only
+    python generate_daily.py              # Generate and print
+    python generate_daily.py --preview    # Generate and open in Preview (no print)
+    python generate_daily.py --save FILE  # Generate and save to file only
+    python generate_daily.py --date DATE  # Generate for specific date (YYYY-MM-DD)
+    python generate_daily.py --no-ai      # Skip AI curation, use raw Guardian articles
 """
 
 import argparse
 import logging
+import os
 import subprocess
 import sys
 import tempfile
@@ -133,7 +136,10 @@ def main():
             f.write(pdf_bytes)
             temp_path = f.name
         print(f"Opening {temp_path} in Preview...")
-        subprocess.run(["open", temp_path])
+        result = subprocess.run(["open", temp_path], capture_output=True, text=True)
+        if result.returncode != 0:
+            print(f"Preview failed: {result.stderr}")
+            sys.exit(1)
 
     else:
         # Print to default printer
@@ -145,8 +151,10 @@ def main():
         result = subprocess.run(["lp", temp_path], capture_output=True, text=True)
         if result.returncode == 0:
             print(f"Printed: {result.stdout.strip()}")
+            os.unlink(temp_path)  # Clean up after successful print
         else:
             print(f"Print failed: {result.stderr}")
+            os.unlink(temp_path)  # Clean up on failure too
             sys.exit(1)
 
     print("Done!")

@@ -104,6 +104,18 @@ def draw_divider(c, x1, x2, y, colour="#E2E8F0"):
     c.line(x1, y, x2, y)
 
 
+def truncate_text(text: str, max_length: int) -> str:
+    """Truncate text at word boundary, adding ellipsis if truncated."""
+    if len(text) <= max_length:
+        return text
+    # Find last space before limit, leaving room for "..."
+    truncated = text[:max_length - 3]
+    last_space = truncated.rfind(' ')
+    if last_space > max_length // 2:  # Only use word boundary if reasonable
+        truncated = truncated[:last_space]
+    return truncated + "..."
+
+
 @dataclass
 class DailyContent:
     """All content for the daily print."""
@@ -244,7 +256,7 @@ def generate_pdf(content: DailyContent) -> bytes:
         draw_divider(c, margin_left, margin_right, inspiration_y + 10 * mm)
 
         # Quote text - larger, italicized feel
-        text = h.text if len(h.text) <= 250 else h.text[:247] + "..."
+        text = truncate_text(h.text, 250)
         inspiration_y = draw_text(c, margin_left + 5 * mm, inspiration_y, f'"{text}"',
                                    font=FONTS["light"], size=10, colour=COLOURS["primary"],
                                    max_width=content_width - 10 * mm)
@@ -268,7 +280,7 @@ def generate_pdf(content: DailyContent) -> bytes:
     if content.verse:
         verse_text, verse_ref = content.verse
         # Shorter verse display
-        short_verse = verse_text if len(verse_text) <= 80 else verse_text[:77] + "..."
+        short_verse = truncate_text(verse_text, 80)
         footer_y_left = draw_text(c, margin_left, footer_y, f'"{short_verse}"',
                                    font=FONTS["light"], size=9, colour=COLOURS["primary"],
                                    max_width=mid_x - margin_left - 10 * mm)
