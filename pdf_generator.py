@@ -194,15 +194,18 @@ def fit_news_to_space(
     news: "CuratedNews",
     available_height: float,
     content_width: float,
-    min_summary_chars: int = 150,
 ) -> "CuratedNews":
     """
     Adjust news content to fit within available vertical space.
 
-    Progressively truncates summaries if content would overflow.
+    Strategy: Keep stories complete. If overflow, ask AI to rewrite ONE story
+    shorter. Only truncate as an absolute fallback.
+
     Returns a new CuratedNews object with adjusted summaries.
     """
-    from data_sources.claude_summarizer import CuratedNews, CuratedStory  # noqa: F811
+    from data_sources.claude_summarizer import (
+        CuratedNews, CuratedStory, shorten_summary
+    )
 
     if not news.top_stories and not news.third_story:
         return news
@@ -238,52 +241,98 @@ def fit_news_to_space(
         )
         return adjusted
 
+    overflow_mm = (heights["total"] - available_height) / mm
     logger.info(
-        "News overflow: %.1fmm needed, %.1fmm available - truncating",
-        heights["total"] / mm, available_height / mm
+        "News overflow: %.1fmm needed, %.1fmm available (%.1fmm over)",
+        heights["total"] / mm, available_height / mm, overflow_mm
     )
 
-    # Progressive truncation strategy:
-    # 1. First truncate third story summary
-    # 2. Then truncate top story summaries (longest first)
-    # 3. Drop headlines if still needed
+    # Strategy: Shorten ONE story more aggressively rather than multiple stories
+    # Estimate needed reduction and be aggressive upfront to minimize API calls
 
-    truncation_steps = [
-        (800, "initial trim"),
-        (600, "moderate trim"),
-        (400, "aggressive trim"),
-        (min_summary_chars, "minimum"),
-    ]
+    stories_to_try = []
+    if adjusted.third_story:
+        # For large overflow (>20mm), go straight to 1 sentence for third story
+        if overflow_mm > 20:
+            stories_to_try.append(("third", 1))
+        else:
+            stories_to_try.append(("third", 2))
+    if len(adjusted.top_stories) > 1:
+        # Second top story: be aggressive if still large overflow expected
+        stories_to_try.append(("top_1", 3))
+    if adjusted.top_stories:
+        # Last resort: shorten first top story
+        stories_to_try.append(("top_0", 4))
 
-    for max_chars, label in truncation_steps:
-        # Truncate third story first
-        if adjusted.third_story and len(adjusted.third_story.summary) > max_chars:
-            adjusted.third_story = CuratedStory(
-                headline=adjusted.third_story.headline,
-                summary=truncate_text(adjusted.third_story.summary, max_chars)
+    for story_id, target_sentences in stories_to_try:
+        if story_id == "third" and adjusted.third_story:
+            logger.info("Asking AI to shorten third story to %d sentences", target_sentences)
+            shorter = shorten_summary(
+                adjusted.third_story.headline,
+                adjusted.third_story.summary,
+                target_sentences
             )
-
-        # Then truncate top stories
-        for i, story in enumerate(adjusted.top_stories):
-            if len(story.summary) > max_chars:
-                adjusted.top_stories[i] = CuratedStory(
-                    headline=story.headline,
-                    summary=truncate_text(story.summary, max_chars)
+            if shorter:
+                adjusted.third_story = CuratedStory(
+                    headline=adjusted.third_story.headline,
+                    summary=shorter
+                )
+        elif story_id == "top_1" and len(adjusted.top_stories) > 1:
+            logger.info("Asking AI to shorten second top story to %d sentences", target_sentences)
+            shorter = shorten_summary(
+                adjusted.top_stories[1].headline,
+                adjusted.top_stories[1].summary,
+                target_sentences
+            )
+            if shorter:
+                adjusted.top_stories[1] = CuratedStory(
+                    headline=adjusted.top_stories[1].headline,
+                    summary=shorter
+                )
+        elif story_id == "top_0" and adjusted.top_stories:
+            logger.info("Asking AI to shorten first top story to %d sentences", target_sentences)
+            shorter = shorten_summary(
+                adjusted.top_stories[0].headline,
+                adjusted.top_stories[0].summary,
+                target_sentences
+            )
+            if shorter:
+                adjusted.top_stories[0] = CuratedStory(
+                    headline=adjusted.top_stories[0].headline,
+                    summary=shorter
                 )
 
+        # Check if we fit now
         heights = _measure_news_height(adjusted, content_width)
         if heights["total"] <= available_height:
-            logger.info("News fits after %s (%.1fmm)", label, heights["total"] / mm)
+            logger.info(
+                "News fits after shortening %s (%.1fmm)",
+                story_id, heights["total"] / mm
+            )
             return adjusted
 
     # Still doesn't fit - drop headlines progressively
     while adjusted.headlines and heights["total"] > available_height:
-        adjusted.headlines.pop()
+        dropped = adjusted.headlines.pop()
+        logger.info("Dropping headline: %s", dropped[:50])
+        heights = _measure_news_height(adjusted, content_width)
+
+    if heights["total"] <= available_height:
+        logger.info("News fits after dropping headlines (%.1fmm)", heights["total"] / mm)
+        return adjusted
+
+    # Absolute fallback: truncate third story summary
+    if adjusted.third_story and heights["total"] > available_height:
+        logger.warning("Fallback: truncating third story summary")
+        adjusted.third_story = CuratedStory(
+            headline=adjusted.third_story.headline,
+            summary=truncate_text(adjusted.third_story.summary, 200)
+        )
         heights = _measure_news_height(adjusted, content_width)
 
     if heights["total"] > available_height:
         logger.warning(
-            "News still overflows after all truncation: %.1fmm > %.1fmm",
+            "News still overflows after all adjustments: %.1fmm > %.1fmm",
             heights["total"] / mm, available_height / mm
         )
 

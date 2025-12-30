@@ -178,3 +178,63 @@ def _fallback(articles: list[dict]) -> CuratedNews:
     third_story = CuratedStory(headline=articles[2]["headline"], summary=articles[2]["summary"]) if len(articles) > 2 else None
     headlines = [a["headline"] for a in articles[3:7]]
     return CuratedNews(top_stories=top_stories, third_story=third_story, headlines=headlines)
+
+
+def shorten_summary(headline: str, summary: str, target_sentences: int) -> str | None:
+    """
+    Ask Claude to rewrite a summary in fewer sentences.
+
+    Args:
+        headline: The story headline for context
+        summary: The original summary to shorten
+        target_sentences: Target number of sentences (e.g., 3-4)
+
+    Returns:
+        Shortened summary, or None if API call fails
+    """
+    if not CLAUDE_API_KEY:
+        logger.warning("ANTHROPIC_API_KEY not set, cannot shorten summary")
+        return None
+
+    prompt = f"""Rewrite this news summary in exactly {target_sentences} complete sentences.
+Keep the most important facts. Write complete sentences - never trail off with ellipsis.
+
+HEADLINE: {headline}
+
+ORIGINAL SUMMARY: {summary}
+
+Respond with ONLY the shortened summary text, no quotes or explanation."""
+
+    try:
+        response = _retry_request(
+            lambda: requests.post(
+                "https://api.anthropic.com/v1/messages",
+                headers={
+                    "x-api-key": CLAUDE_API_KEY,
+                    "anthropic-version": "2023-06-01",
+                    "content-type": "application/json",
+                },
+                json={
+                    "model": CLAUDE_MODEL,
+                    "max_tokens": 512,
+                    "messages": [
+                        {"role": "user", "content": prompt}
+                    ]
+                },
+                timeout=30,
+            )
+        )
+        response.raise_for_status()
+        data = response.json()
+
+        content = data.get("content", [])
+        if not content:
+            return None
+
+        first_content = content[0] if content else {}
+        text = first_content.get("text", "") if isinstance(first_content, dict) else ""
+        return text.strip() if text else None
+
+    except requests.RequestException as e:
+        logger.warning("Failed to shorten summary: %s", e)
+        return None
