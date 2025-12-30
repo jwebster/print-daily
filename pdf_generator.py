@@ -2,11 +2,12 @@
 # Magazine/modern style with Montserrat typography
 
 import io
+import logging
 import os
 from datetime import date
-from dataclasses import dataclass
-
 from reportlab.lib.colors import HexColor
+
+logger = logging.getLogger(__name__)
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import cm, mm
 from reportlab.pdfgen import canvas
@@ -15,7 +16,10 @@ from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfbase.pdfmetrics import stringWidth
 from reportlab.lib.utils import simpleSplit
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
+
+from data_sources.readwise import Highlight
 from data_sources.weather import WeatherData
 
 if TYPE_CHECKING:
@@ -55,12 +59,21 @@ def register_fonts():
         ("Montserrat-Bold", "Montserrat-Bold.ttf"),
         ("Montserrat-Light", "Montserrat-Light.ttf"),
     ]
+    registered_count = 0
     for font_name, font_filename in fonts:
         try:
             font_path = get_font_path(font_filename)
             pdfmetrics.registerFont(TTFont(font_name, font_path))
+            registered_count += 1
         except Exception as e:
-            print(f"Warning: Could not register font {font_name}: {e}")
+            logger.error(f"Could not register font {font_name}: {e}")
+
+    if registered_count == 0:
+        raise RuntimeError(
+            f"No fonts could be registered. PDF generation requires at least one "
+            f"Montserrat font in the 'fonts' directory. Expected fonts: "
+            f"{', '.join(f[1] for f in fonts)}"
+        )
 
 
 def draw_text(c, x, y, text, font="Montserrat-Medium", size=10, colour="#1A1D21", align="left", max_width=None):
@@ -89,14 +102,6 @@ def draw_divider(c, x1, x2, y, colour="#E2E8F0"):
     c.setStrokeColor(HexColor(colour))
     c.setLineWidth(0.5)
     c.line(x1, y, x2, y)
-
-
-@dataclass
-class Highlight:
-    """A Readwise highlight."""
-    text: str
-    title: str
-    author: str
 
 
 @dataclass

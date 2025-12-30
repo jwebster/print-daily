@@ -21,7 +21,7 @@ VERSES = [
     ("Your word is a lamp for my feet, a light on my path.", "Psalm 119:105"),
     ("Cast all your anxiety on him because he cares for you.", "1 Peter 5:7"),
     ("The grass withers and the flowers fall, but the word of our God endures forever.", "Isaiah 40:8"),
-    ("Have I not commanded you? Be strong and courageous. Do not be afraid; do not be discouraged.", "Joshua 1:9"),
+    ("The Lord is my rock, my fortress and my deliverer; my God is my rock, in whom I take refuge.", "Psalm 18:2"),
     ("But the fruit of the Spirit is love, joy, peace, forbearance, kindness, goodness, faithfulness, gentleness and self-control.", "Galatians 5:22-23"),
     ("He has shown you, O mortal, what is good. And what does the LORD require of you? To act justly and to love mercy and to walk humbly with your God.", "Micah 6:8"),
     ("Create in me a pure heart, O God, and renew a steadfast spirit within me.", "Psalm 51:10"),

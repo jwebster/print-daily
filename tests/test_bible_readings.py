@@ -25,7 +25,7 @@ class TestBookAbbreviations:
     def test_new_testament_books(self):
         assert book_abbreviations("Matthew") == "Matt."
         assert book_abbreviations("Romans") == "Rom."
-        assert book_abbreviations("Revelation") == "Rev"
+        assert book_abbreviations("Revelation") == "Rev."
 
     def test_books_without_abbreviation(self):
         assert book_abbreviations("Ruth") == "Ruth"

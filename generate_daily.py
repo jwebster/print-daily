@@ -10,11 +10,21 @@ Usage:
 """
 
 import argparse
+import logging
 import subprocess
 import sys
 import tempfile
 from datetime import date
 from pathlib import Path
+
+# Configure logging before any other imports
+# Logs go to stderr so launchd captures them in stderr.log
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+logger = logging.getLogger(__name__)
 
 # Load environment variables from .env file
 from dotenv import load_dotenv

@@ -25,7 +25,7 @@ def book_abbreviations(book):
         "Esther": "Est.",
         "Job": "Job",
         "Psalms": "Ps.",
-        "Proverbs": "Prov",
+        "Proverbs": "Prov.",
         "Ecclesiastes": "Eccles.",
         "Song of Solomon": "Song",
         "Song of Songs": "Song",
@@ -72,7 +72,7 @@ def book_abbreviations(book):
         "2 John": "2 John",
         "3 John": "3 John",
         "Jude": "Jude",
-        "Revelation": "Rev",
+        "Revelation": "Rev.",
     }
     return mapping.get(book, book)
 
@@ -143,16 +143,16 @@ def new(n):
     readings.extend(expand_book("1 Timothy", 6))
     readings.extend(expand_book("2 Timothy", 4))
     readings.extend(expand_book("Titus", 3))
-    readings.append(f"{book_abbreviations('Philemon')}")
+    readings.append(f"{book_abbreviations('Philemon')} 1")
     readings.extend(expand_book("Hebrews", 13))
     readings.extend(expand_book("John", 21))
     readings.extend(expand_book("James", 5))
     readings.extend(expand_book("1 Peter", 5))
     readings.extend(expand_book("2 Peter", 3))
     readings.extend(expand_book("1 John", 5))
-    readings.append(f"{book_abbreviations('2 John')}")
-    readings.append(f"{book_abbreviations('3 John')}")
-    readings.append(f"{book_abbreviations('Jude')}")
+    readings.append(f"{book_abbreviations('2 John')} 1")
+    readings.append(f"{book_abbreviations('3 John')} 1")
+    readings.append(f"{book_abbreviations('Jude')} 1")
     readings.extend(expand_book("Revelation", 22))
 
     try:
