@@ -126,6 +126,170 @@ def truncate_text(text: str, max_length: int) -> str:
     return truncated + "..."
 
 
+def measure_text_height(
+    text: str,
+    font: str = "Montserrat-Medium",
+    size: int = 10,
+    max_width: float | None = None,
+) -> float:
+    """Calculate the height text will occupy when rendered (with wrapping)."""
+    if not text:
+        return 0
+    line_height = size * 1.3
+    if max_width and stringWidth(text, font, size) > max_width:
+        lines = simpleSplit(text, font, size, max_width)
+        return line_height * len(lines)
+    return line_height
+
+
+def _measure_news_height(news: "CuratedNews", content_width: float) -> dict:
+    """
+    Measure the height requirements for news content.
+
+    Returns dict with heights for each section and total.
+    """
+    heights = {"top_stories": [], "third_story": 0, "headlines": 0, "header": 8 * mm}
+    col_width = (content_width - 8 * mm) / 2
+
+    # Top stories (full width)
+    for story in news.top_stories:
+        headline_h = measure_text_height(
+            story.headline, FONTS["semibold"], 11, content_width
+        )
+        summary_h = measure_text_height(
+            story.summary, FONTS["medium"], 8, content_width
+        )
+        # headline + gap + summary + gap
+        story_height = headline_h + 5 * mm + summary_h + 8 * mm
+        heights["top_stories"].append(story_height)
+
+    # Third story (left column)
+    if news.third_story:
+        headline_h = measure_text_height(
+            news.third_story.headline, FONTS["semibold"], 10, col_width
+        )
+        summary_h = measure_text_height(
+            news.third_story.summary, FONTS["medium"], 8, col_width
+        )
+        heights["third_story"] = headline_h + 4 * mm + summary_h
+
+    # Headlines (right column) - estimate
+    if news.headlines:
+        heights["headlines"] = 5 * mm  # "IN BRIEF" header
+        for headline in news.headlines:
+            h = measure_text_height(headline, FONTS["medium"], 8, col_width - 3 * mm)
+            heights["headlines"] += h + 4 * mm
+
+    # Total height
+    heights["total"] = (
+        heights["header"]
+        + sum(heights["top_stories"])
+        + max(heights["third_story"], heights["headlines"])
+    )
+
+    return heights
+
+
+def fit_news_to_space(
+    news: "CuratedNews",
+    available_height: float,
+    content_width: float,
+    min_summary_chars: int = 150,
+) -> "CuratedNews":
+    """
+    Adjust news content to fit within available vertical space.
+
+    Progressively truncates summaries if content would overflow.
+    Returns a new CuratedNews object with adjusted summaries.
+    """
+    from data_sources.claude_summarizer import CuratedNews, CuratedStory  # noqa: F811
+
+    if not news.top_stories and not news.third_story:
+        return news
+
+    # Make mutable copies
+    top_stories = [
+        CuratedStory(headline=s.headline, summary=s.summary)
+        for s in news.top_stories
+    ]
+    third_story = (
+        CuratedStory(
+            headline=news.third_story.headline,
+            summary=news.third_story.summary
+        )
+        if news.third_story else None
+    )
+    headlines = list(news.headlines)
+
+    # Create working news object
+    adjusted = CuratedNews(
+        top_stories=top_stories,
+        third_story=third_story,
+        headlines=headlines
+    )
+
+    # Measure current height
+    heights = _measure_news_height(adjusted, content_width)
+
+    if heights["total"] <= available_height:
+        logger.debug(
+            "News fits: %.1fmm needed, %.1fmm available",
+            heights["total"] / mm, available_height / mm
+        )
+        return adjusted
+
+    logger.info(
+        "News overflow: %.1fmm needed, %.1fmm available - truncating",
+        heights["total"] / mm, available_height / mm
+    )
+
+    # Progressive truncation strategy:
+    # 1. First truncate third story summary
+    # 2. Then truncate top story summaries (longest first)
+    # 3. Drop headlines if still needed
+
+    truncation_steps = [
+        (800, "initial trim"),
+        (600, "moderate trim"),
+        (400, "aggressive trim"),
+        (min_summary_chars, "minimum"),
+    ]
+
+    for max_chars, label in truncation_steps:
+        # Truncate third story first
+        if adjusted.third_story and len(adjusted.third_story.summary) > max_chars:
+            adjusted.third_story = CuratedStory(
+                headline=adjusted.third_story.headline,
+                summary=truncate_text(adjusted.third_story.summary, max_chars)
+            )
+
+        # Then truncate top stories
+        for i, story in enumerate(adjusted.top_stories):
+            if len(story.summary) > max_chars:
+                adjusted.top_stories[i] = CuratedStory(
+                    headline=story.headline,
+                    summary=truncate_text(story.summary, max_chars)
+                )
+
+        heights = _measure_news_height(adjusted, content_width)
+        if heights["total"] <= available_height:
+            logger.info("News fits after %s (%.1fmm)", label, heights["total"] / mm)
+            return adjusted
+
+    # Still doesn't fit - drop headlines progressively
+    while adjusted.headlines and heights["total"] > available_height:
+        adjusted.headlines.pop()
+        heights = _measure_news_height(adjusted, content_width)
+
+    if heights["total"] > available_height:
+        logger.warning(
+            "News still overflows after all truncation: %.1fmm > %.1fmm",
+            heights["total"] / mm, available_height / mm
+        )
+
+    return adjusted
+
+
 @dataclass
 class DailyContent:
     """All content for the daily print."""
@@ -197,11 +361,13 @@ def generate_pdf(content: DailyContent) -> bytes:
     # Define safe zones
     inspiration_top = 7 * cm  # Don't go below this for news
 
+    # Calculate available height for news and fit content
+    news_available_height = y - inspiration_top - 1 * cm  # 1cm safety margin
+    news = fit_news_to_space(content.news, news_available_height, content_width)
+
     draw_text(c, margin_left, y, "THE GUARDIAN",
               font=FONTS["bold"], size=9, colour=COLOURS["secondary"])
     y -= 8 * mm
-
-    news = content.news
     if news and (news.top_stories or news.third_story or news.headlines):
         # Top 2 stories with detailed summaries (full width)
         for item in news.top_stories:
@@ -263,11 +429,21 @@ def generate_pdf(content: DailyContent) -> bytes:
     if content.highlight:
         h = content.highlight
         inspiration_y = 6.5 * cm
+        footer_y = 3 * cm
 
         draw_divider(c, margin_left, margin_right, inspiration_y + 10 * mm)
 
+        # Calculate max quote length based on available space
+        # Space available: inspiration_y down to footer_y + margin
+        available_quote_height = inspiration_y - footer_y - 1 * cm
+        # Estimate chars that fit: ~10 chars per line, ~13pt line height
+        quote_max_width = content_width - 10 * mm
+        chars_per_line = int(quote_max_width / (10 * 0.5))  # rough estimate
+        max_lines = int(available_quote_height / (10 * 1.3))
+        max_quote_chars = min(250, chars_per_line * max_lines)
+
         # Quote text - larger, italicized feel
-        text = truncate_text(h.text, 250)
+        text = truncate_text(h.text, max_quote_chars)
         inspiration_y = draw_text(c, margin_left + 5 * mm, inspiration_y, f'"{text}"',
                                    font=FONTS["light"], size=10, colour=COLOURS["primary"],
                                    max_width=content_width - 10 * mm)
