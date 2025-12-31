@@ -29,6 +29,38 @@ def _retry_request(func, max_retries=3, delay=1):
 CLAUDE_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
 CLAUDE_MODEL = os.environ.get("CLAUDE_MODEL", "claude-sonnet-4-20250514")
 
+
+def _extract_json_object(text: str) -> str:
+    """Extract JSON object from text that may have trailing content."""
+    if not text.startswith("{"):
+        return text
+
+    # Find matching closing brace by counting depth
+    depth = 0
+    in_string = False
+    escape_next = False
+
+    for i, char in enumerate(text):
+        if escape_next:
+            escape_next = False
+            continue
+        if char == "\\":
+            escape_next = True
+            continue
+        if char == '"' and not escape_next:
+            in_string = not in_string
+            continue
+        if in_string:
+            continue
+        if char == "{":
+            depth += 1
+        elif char == "}":
+            depth -= 1
+            if depth == 0:
+                return text[:i + 1]
+
+    return text
+
 SYSTEM_PROMPT = """You are a news curator for a daily printed newspaper. Your reader is interested in:
 - UK and world politics
 - Climate and environment
@@ -138,6 +170,9 @@ def curate_and_summarize(articles: list[dict]) -> CuratedNews:
             text = text.split("```")[1].split("```")[0]
 
         text = text.strip()
+
+        # Extract JSON object if there's trailing text after closing brace
+        text = _extract_json_object(text)
 
         # Parse JSON response
         result = json.loads(text)
