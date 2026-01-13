@@ -15,10 +15,10 @@
 
     <key>ProgramArguments</key>
     <array>
-        <!-- Update this to your Python path (run: which python3) -->
-        <string>/usr/bin/python3</string>
+        <!-- Use the venv Python which has required packages -->
+        <string>/Users/jwebster/code/personal/print-daily/venv/bin/python3</string>
         <!-- Update this to your installation path -->
-        <string>/path/to/print-daily/generate_daily.py</string>
+        <string>/Users/jwebster/code/personal/print-daily/generate_daily.py</string>
     </array>
 
     <key>StartCalendarInterval</key>
@@ -26,19 +26,19 @@
         <key>Hour</key>
         <integer>6</integer>
         <key>Minute</key>
-        <integer>30</integer>
+        <integer>15</integer>
     </dict>
 
     <!-- Update this to your installation path -->
     <key>WorkingDirectory</key>
-    <string>/path/to/print-daily</string>
+    <string>/Users/jwebster/code/personal/print-daily</string>
 
     <!-- Update these to your installation path -->
     <key>StandardOutPath</key>
-    <string>/path/to/print-daily/logs/stdout.log</string>
+    <string>/Users/jwebster/code/personal/print-daily/logs/stdout.log</string>
 
     <key>StandardErrorPath</key>
-    <string>/path/to/print-daily/logs/stderr.log</string>
+    <string>/Users/jwebster/code/personal/print-daily/logs/stderr.log</string>
 
     <key>RunAtLoad</key>
     <false/>
