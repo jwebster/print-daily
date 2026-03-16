@@ -20,6 +20,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from data_sources.readwise import Highlight
+from data_sources.solar import SolarSummary
 from data_sources.weather import LOCATION_NAME, WeatherData
 
 if TYPE_CHECKING:
@@ -348,6 +349,7 @@ class DailyContent:
     readings: list[str] | None  # None on weekends
     verse: tuple[str, str] | None = None  # (text, reference)
     highlight: Highlight | None = None
+    solar: SolarSummary | None = None
 
 
 def generate_pdf(content: DailyContent) -> bytes:
@@ -408,7 +410,8 @@ def generate_pdf(content: DailyContent) -> bytes:
 
     # === NEWS SECTION ===
     # Define safe zones
-    inspiration_top = 7 * cm  # Don't go below this for news
+    # Don't let news go below this point (leaves room for quote + solar + footer)
+    inspiration_top = 8 * cm if content.solar else 7 * cm
 
     # Calculate available height for news and fit content
     news_available_height = y - inspiration_top - 1 * cm  # 1cm safety margin
@@ -474,71 +477,109 @@ def generate_pdf(content: DailyContent) -> bytes:
                   font=FONTS["medium"], size=10, colour=COLOURS["muted"])
         y -= 12 * mm
 
-    # === INSPIRATION SECTION (highlight above footer) ===
-    if content.highlight:
-        h = content.highlight
-        inspiration_y = 6.5 * cm
-        footer_y = 3 * cm
+    # === BOTTOM SECTIONS (built from the bottom up) ===
+    # Layout (bottom to top):
+    #   1.5cm  — verse + readings (side by side)
+    #   3.0cm  — solar energy strip (if available)
+    #   above  — inspiration quote (if available)
 
-        draw_divider(c, margin_left, margin_right, inspiration_y + 10 * mm)
-
-        # Calculate max quote length based on available space
-        # Space available: inspiration_y down to footer_y + margin
-        available_quote_height = inspiration_y - footer_y - 1 * cm
-        # Estimate chars that fit: ~10 chars per line, ~13pt line height
-        quote_max_width = content_width - 10 * mm
-        chars_per_line = int(quote_max_width / (10 * 0.5))  # rough estimate
-        max_lines = int(available_quote_height / (10 * 1.3))
-        max_quote_chars = min(250, chars_per_line * max_lines)
-
-        # Quote text - larger, italicized feel
-        text = truncate_text(h.text, max_quote_chars)
-        inspiration_y = draw_text(c, margin_left + 5 * mm, inspiration_y, f'"{text}"',
-                                   font=FONTS["light"], size=10, colour=COLOURS["primary"],
-                                   max_width=content_width - 10 * mm)
-        inspiration_y -= 6 * mm
-
-        # Attribution - right aligned
-        draw_text(c, margin_right, inspiration_y, f"— {h.author}",
-                  font=FONTS["semibold"], size=9, colour=COLOURS["secondary"], align="right")
-        draw_text(c, margin_right, inspiration_y - 4 * mm, h.title,
-                  font=FONTS["light"], size=8, colour=COLOURS["muted"], align="right")
-
-    # === FOOTER SECTION (verse + readings) ===
-    footer_y = 3 * cm
-
-    draw_divider(c, margin_left, margin_right, footer_y + 8 * mm)
-
-    # Bible verse and readings side by side
+    # -- Verse + Readings --
+    verse_y = 1.5 * cm
     mid_x = page_width / 2
 
-    # Verse (left side)
     if content.verse:
         verse_text, verse_ref = content.verse
-        # Shorter verse display
         short_verse = truncate_text(verse_text, 80)
-        footer_y_left = draw_text(c, margin_left, footer_y, f'"{short_verse}"',
-                                   font=FONTS["light"], size=9, colour=COLOURS["primary"],
-                                   max_width=mid_x - margin_left - 10 * mm)
-        draw_text(c, margin_left, footer_y_left - 4 * mm, f"— {verse_ref}",
+        verse_y_left = draw_text(c, margin_left, verse_y, f'"{short_verse}"',
+                                  font=FONTS["light"], size=9, colour=COLOURS["primary"],
+                                  max_width=mid_x - margin_left - 10 * mm)
+        draw_text(c, margin_left, verse_y_left - 4 * mm, f"— {verse_ref}",
                   font=FONTS["medium"], size=8, colour=COLOURS["muted"])
 
-    # Readings (right side)
-    draw_text(c, mid_x + 5 * mm, footer_y, "TODAY'S READINGS",
+    draw_text(c, mid_x + 5 * mm, verse_y, "TODAY'S READINGS",
               font=FONTS["bold"], size=8, colour=COLOURS["secondary"])
 
     if content.readings:
         valid_readings = [r for r in content.readings if r]
         if valid_readings:
             readings_text = "  ·  ".join(valid_readings)
-            draw_text(c, mid_x + 5 * mm, footer_y - 5 * mm, readings_text,
+            draw_text(c, mid_x + 5 * mm, verse_y - 5 * mm, readings_text,
                       font=FONTS["medium"], size=10, colour=COLOURS["primary"])
         else:
-            draw_text(c, mid_x + 5 * mm, footer_y - 5 * mm, "End of year",
+            draw_text(c, mid_x + 5 * mm, verse_y - 5 * mm, "End of year",
                       font=FONTS["light"], size=9, colour=COLOURS["muted"])
     else:
-        draw_text(c, mid_x + 5 * mm, footer_y - 5 * mm, "Weekend",
+        draw_text(c, mid_x + 5 * mm, verse_y - 5 * mm, "Weekend",
                   font=FONTS["light"], size=9, colour=COLOURS["muted"])
+
+    # Divider above verse/readings
+    draw_divider(c, margin_left, margin_right, verse_y + 8 * mm)
+
+    # -- Solar energy strip --
+    next_section_top = verse_y + 12 * mm  # top of verse section including divider
+
+    if content.solar:
+        sol = content.solar
+        solar_y = next_section_top + 8 * mm
+
+        # Line 1: key stats
+        parts = []
+        if sol.solar_kwh is not None:
+            parts.append(f"{sol.solar_kwh:.0f} kWh solar expected")
+        if sol.saving is not None:
+            parts.append(f"£{sol.saving:.2f} saving")
+        if sol.agile_low is not None and sol.agile_high is not None:
+            parts.append(f"Agile {sol.agile_low}–{sol.agile_high}p")
+
+        if parts:
+            draw_text(c, margin_left, solar_y, "ENERGY",
+                      font=FONTS["bold"], size=7, colour=COLOURS["muted"])
+            draw_text(c, margin_left + 14 * mm, solar_y,
+                      "   ".join(parts),
+                      font=FONTS["medium"], size=7, colour=COLOURS["secondary"])
+
+        # Line 2: actionable hints
+        hints = []
+        if sol.best_solar_window:
+            w = sol.best_solar_window
+            hints.append(f"Use appliances {w['start']}–{w['end']} (free solar)")
+        if sol.cheapest_slots:
+            cheap = sol.cheapest_slots[0]
+            hints.append(f"cheapest grid at {cheap['time']} ({cheap['rate']:.0f}p)")
+
+        if hints:
+            draw_text(c, margin_left + 14 * mm, solar_y - 4 * mm,
+                      "  ·  ".join(hints),
+                      font=FONTS["light"], size=7, colour=COLOURS["secondary"])
+
+        # Divider above solar
+        draw_divider(c, margin_left, margin_right, solar_y + 5 * mm)
+        next_section_top = solar_y + 9 * mm
+
+    # -- Inspiration quote --
+    if content.highlight:
+        h = content.highlight
+        inspiration_y = next_section_top + 18 * mm
+        inspiration_floor = next_section_top + 2 * mm
+
+        draw_divider(c, margin_left, margin_right, inspiration_y + 10 * mm)
+
+        available_quote_height = inspiration_y - inspiration_floor
+        quote_max_width = content_width - 10 * mm
+        chars_per_line = int(quote_max_width / (10 * 0.5))
+        max_lines = int(available_quote_height / (10 * 1.3))
+        max_quote_chars = min(250, chars_per_line * max_lines)
+
+        text = truncate_text(h.text, max_quote_chars)
+        inspiration_y = draw_text(c, margin_left + 5 * mm, inspiration_y, f'"{text}"',
+                                   font=FONTS["light"], size=10, colour=COLOURS["primary"],
+                                   max_width=content_width - 10 * mm)
+        inspiration_y -= 6 * mm
+
+        draw_text(c, margin_right, inspiration_y, f"— {h.author}",
+                  font=FONTS["semibold"], size=9, colour=COLOURS["secondary"], align="right")
+        draw_text(c, margin_right, inspiration_y - 4 * mm, h.title,
+                  font=FONTS["light"], size=8, colour=COLOURS["muted"], align="right")
 
     # Finish
     c.showPage()

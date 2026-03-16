@@ -39,6 +39,7 @@ from data_sources.guardian import get_news
 from data_sources.bible_readings import get_todays_readings
 from data_sources.bible_verse import get_daily_verse
 from data_sources.readwise import get_random_highlight
+from data_sources.solar import get_solar_summary
 from data_sources.claude_summarizer import (
     curate_and_summarize, CuratedStory, CuratedNews,
 )
@@ -84,13 +85,17 @@ def main():
     def fetch_highlight():
         return get_random_highlight()
 
+    def fetch_solar():
+        return get_solar_summary()
+
     # Run all fetches in parallel
-    with ThreadPoolExecutor(max_workers=5) as executor:
+    with ThreadPoolExecutor(max_workers=6) as executor:
         future_weather = executor.submit(fetch_weather)
         future_news = executor.submit(fetch_news)
         future_readings = executor.submit(fetch_readings)
         future_verse = executor.submit(fetch_verse)
         future_highlight = executor.submit(fetch_highlight)
+        future_solar = executor.submit(fetch_solar)
 
         # Collect results
         weather = future_weather.result()
@@ -98,6 +103,7 @@ def main():
         readings = future_readings.result()
         verse = future_verse.result()
         rw_highlight = future_highlight.result()
+        solar = future_solar.result()
 
     # Print results in order
     print("  Weather:")
@@ -136,6 +142,17 @@ def main():
     print("  Verse of the day:")
     print(f"    {verse[1]}")
 
+    print("  Solar plan:")
+    if solar:
+        parts = []
+        if solar.solar_kwh is not None:
+            parts.append(f"{solar.solar_kwh} kWh solar")
+        if solar.saving is not None:
+            parts.append(f"saving £{solar.saving:.2f}")
+        print(f"    {', '.join(parts) if parts else 'No data'}")
+    else:
+        print("    Unavailable")
+
     print("  Readwise highlight:")
     if rw_highlight:
         print(f"    From: {rw_highlight.title}")
@@ -153,6 +170,7 @@ def main():
         readings=readings,
         verse=verse,
         highlight=highlight,
+        solar=solar,
     )
     pdf_bytes = generate_pdf(content)
     print(f"    {len(pdf_bytes)} bytes")
