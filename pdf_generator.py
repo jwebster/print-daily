@@ -133,14 +133,20 @@ def measure_text_height(
     size: int = 10,
     max_width: float | None = None,
 ) -> float:
-    """Calculate the height text will occupy when rendered (with wrapping)."""
+    """Calculate the y-decrease that draw_text would produce.
+
+    draw_text draws the first line at the current y, then decrements for
+    subsequent lines.  It returns y positioned at the last baseline, so
+    the total y-decrease is (n-1)*line_height for n lines, and 0 for a
+    single line that doesn't wrap.
+    """
     if not text:
         return 0
     line_height = size * 1.3
     if max_width and stringWidth(text, font, size) > max_width:
         lines = simpleSplit(text, font, size, max_width)
-        return line_height * len(lines)
-    return line_height
+        return line_height * (len(lines) - 1)
+    return 0
 
 
 def _measure_news_height(news: "CuratedNews", content_width: float) -> dict:
@@ -411,10 +417,10 @@ def generate_pdf(content: DailyContent) -> bytes:
     # === NEWS SECTION ===
     # Define safe zones
     # Don't let news go below this point (leaves room for quote + solar + footer)
-    inspiration_top = 8 * cm if content.solar else 7 * cm
+    inspiration_top = 7 * cm if content.solar else 6 * cm
 
     # Calculate available height for news and fit content
-    news_available_height = y - inspiration_top - 1 * cm  # 1cm safety margin
+    news_available_height = y - inspiration_top - 0.5 * cm  # 0.5cm safety margin
     news = fit_news_to_space(content.news, news_available_height, content_width)
 
     draw_text(c, margin_left, y, "THE GUARDIAN",
@@ -423,7 +429,7 @@ def generate_pdf(content: DailyContent) -> bytes:
     if news and (news.top_stories or news.third_story or news.headlines):
         # Top 2 stories with detailed summaries (full width)
         for item in news.top_stories:
-            if y < inspiration_top + 3 * cm:
+            if y < inspiration_top + 2 * cm:
                 break
 
             # Headline
@@ -485,31 +491,31 @@ def generate_pdf(content: DailyContent) -> bytes:
 
     # -- Verse + Readings --
     verse_y = 1.5 * cm
-    mid_x = page_width / 2
+    readings_x = margin_left + content_width * 0.6  # 60% verse, 40% readings
 
     if content.verse:
         verse_text, verse_ref = content.verse
-        short_verse = truncate_text(verse_text, 80)
+        short_verse = truncate_text(verse_text, 130)
         verse_y_left = draw_text(c, margin_left, verse_y, f'"{short_verse}"',
                                   font=FONTS["light"], size=9, colour=COLOURS["primary"],
-                                  max_width=mid_x - margin_left - 10 * mm)
+                                  max_width=readings_x - margin_left - 5 * mm)
         draw_text(c, margin_left, verse_y_left - 4 * mm, f"— {verse_ref}",
                   font=FONTS["medium"], size=8, colour=COLOURS["muted"])
 
-    draw_text(c, mid_x + 5 * mm, verse_y, "TODAY'S READINGS",
+    draw_text(c, readings_x + 5 * mm, verse_y, "TODAY'S READINGS",
               font=FONTS["bold"], size=8, colour=COLOURS["secondary"])
 
     if content.readings:
         valid_readings = [r for r in content.readings if r]
         if valid_readings:
             readings_text = "  ·  ".join(valid_readings)
-            draw_text(c, mid_x + 5 * mm, verse_y - 5 * mm, readings_text,
+            draw_text(c, readings_x + 5 * mm, verse_y - 5 * mm, readings_text,
                       font=FONTS["medium"], size=10, colour=COLOURS["primary"])
         else:
-            draw_text(c, mid_x + 5 * mm, verse_y - 5 * mm, "End of year",
+            draw_text(c, readings_x + 5 * mm, verse_y - 5 * mm, "End of year",
                       font=FONTS["light"], size=9, colour=COLOURS["muted"])
     else:
-        draw_text(c, mid_x + 5 * mm, verse_y - 5 * mm, "Weekend",
+        draw_text(c, readings_x + 5 * mm, verse_y - 5 * mm, "Weekend",
                   font=FONTS["light"], size=9, colour=COLOURS["muted"])
 
     # Divider above verse/readings
@@ -520,7 +526,7 @@ def generate_pdf(content: DailyContent) -> bytes:
 
     if content.solar:
         sol = content.solar
-        solar_y = next_section_top + 8 * mm
+        solar_y = next_section_top + 6 * mm
 
         # Line 1: key stats
         parts = []
@@ -554,15 +560,15 @@ def generate_pdf(content: DailyContent) -> bytes:
 
         # Divider above solar
         draw_divider(c, margin_left, margin_right, solar_y + 5 * mm)
-        next_section_top = solar_y + 9 * mm
+        next_section_top = solar_y + 7 * mm
 
     # -- Inspiration quote --
     if content.highlight:
         h = content.highlight
-        inspiration_y = next_section_top + 18 * mm
-        inspiration_floor = next_section_top + 2 * mm
+        inspiration_y = next_section_top + 24 * mm
+        inspiration_floor = next_section_top + 10 * mm  # reserve for attribution below quote
 
-        draw_divider(c, margin_left, margin_right, inspiration_y + 10 * mm)
+        draw_divider(c, margin_left, margin_right, inspiration_y + 6 * mm)
 
         available_quote_height = inspiration_y - inspiration_floor
         quote_max_width = content_width - 10 * mm
